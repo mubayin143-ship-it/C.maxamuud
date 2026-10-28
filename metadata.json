@@ -1,0 +1,6 @@
+{
+  "name": "SmartEducate",
+  "description": "Modern university education platform foundation with design system, multi-language i18n and RTL support.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

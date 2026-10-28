@@ -1,0 +1,337 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role authentication and academic identity",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Auth user UID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address",
+          "maxLength": 256
+        },
+        "fullName": {
+          "type": "string",
+          "description": "User full display name",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "teacher", "lecturer"],
+          "description": "Authoritative user account role"
+        },
+        "viewMode": {
+          "type": "string",
+          "enum": ["student", "teacher"],
+          "description": "Current view mode"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Profile creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last profile update timestamp"
+        }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "Academic classroom managed by an authorized teacher verified server-side",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Classroom unique identifier",
+          "maxLength": 128
+        },
+        "code": {
+          "type": "string",
+          "description": "Join code for students",
+          "maxLength": 32
+        },
+        "title": {
+          "type": "string",
+          "description": "Classroom title",
+          "maxLength": 128
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of study",
+          "maxLength": 128
+        },
+        "instructorId": {
+          "type": "string",
+          "description": "Teacher UID owning this classroom",
+          "maxLength": 128
+        },
+        "instructorName": {
+          "type": "string",
+          "description": "Display name of the instructor",
+          "maxLength": 128
+        },
+        "institution": {
+          "type": "string",
+          "description": "Associated university or school",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "code", "title", "instructorId"]
+    },
+    "ClassroomMaterial": {
+      "title": "ClassroomMaterial",
+      "description": "Study material uploaded and managed by authorized teachers verified server-side",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Material ID",
+          "maxLength": 128
+        },
+        "classroomId": {
+          "type": "string",
+          "description": "Parent classroom ID",
+          "maxLength": 128
+        },
+        "instructorId": {
+          "type": "string",
+          "description": "Teacher UID who uploaded the material",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Document title",
+          "maxLength": 128
+        },
+        "fileType": {
+          "type": "string",
+          "description": "File or material format",
+          "maxLength": 64
+        },
+        "permission": {
+          "type": "string",
+          "enum": ["allow_download", "view_only"],
+          "description": "Download permission policy"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Upload timestamp"
+        }
+      },
+      "required": ["id", "classroomId", "instructorId", "title"]
+    },
+    "ClassroomEnrollment": {
+      "title": "ClassroomEnrollment",
+      "description": "Student enrollment record associating an authenticated student with a classroom",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique enrollment record ID or student UID",
+          "maxLength": 128
+        },
+        "classroomId": {
+          "type": "string",
+          "description": "Parent classroom ID",
+          "maxLength": 128
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Enrolled student Firebase Auth UID",
+          "maxLength": 128
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Enrolled student display name",
+          "maxLength": 128
+        },
+        "studentEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Enrolled student email address",
+          "maxLength": 256
+        },
+        "enrolledDate": {
+          "type": "string",
+          "description": "Human readable enrollment date or relative string",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "pending"],
+          "description": "Enrollment status"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Enrollment timestamp"
+        }
+      },
+      "required": ["id", "classroomId", "studentId", "studentName", "studentEmail"]
+    },
+    "ClassroomMessage": {
+      "title": "ClassroomMessage",
+      "description": "Real-time message in a classroom discussion or direct thread between student and instructor",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message unique identifier",
+          "maxLength": 128
+        },
+        "classroomId": {
+          "type": "string",
+          "description": "Parent classroom ID",
+          "maxLength": 128
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Sender Firebase Auth UID or user ID",
+          "maxLength": 128
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Display name of the sender",
+          "maxLength": 128
+        },
+        "senderRole": {
+          "type": "string",
+          "enum": ["teacher", "student"],
+          "description": "Role of the sender"
+        },
+        "recipientId": {
+          "type": "string",
+          "description": "Recipient UID or 'group' for class-wide discussions",
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "voice_note"],
+          "description": "Message content type"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text message content",
+          "maxLength": 5000
+        },
+        "voiceNote": {
+          "type": "object",
+          "description": "Voice recording payload with audio data and duration"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp for chronological ordering",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sent", "delivered", "read"],
+          "description": "Delivery status receipt"
+        }
+      },
+      "required": ["id", "classroomId", "senderId", "senderName", "senderRole", "type"]
+    },
+    "CoTeacherMember": {
+      "title": "CoTeacherMember",
+      "description": "Authorized faculty co-teacher with assigned teaching role and classroom access permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Co-teacher user UID", "maxLength": 128 },
+        "teacherId": { "type": "string", "description": "Co-teacher user UID", "maxLength": 128 },
+        "teacherName": { "type": "string", "description": "Co-teacher display name", "maxLength": 128 },
+        "teacherEmail": { "type": "string", "format": "email", "description": "Co-teacher email", "maxLength": 256 },
+        "classroomId": { "type": "string", "description": "Target classroom ID", "maxLength": 128 },
+        "classroomTitle": { "type": "string", "description": "Target classroom title", "maxLength": 128 },
+        "classroomCode": { "type": "string", "description": "Classroom code", "maxLength": 32 },
+        "role": { "type": "string", "enum": ["Co-Lecturer", "Teaching Assistant", "Assessment Reviewer", "Lab Instructor"], "description": "Co-teacher role" },
+        "status": { "type": "string", "enum": ["active"], "description": "Active membership status" },
+        "joinedAt": { "type": "string", "format": "date-time", "description": "Timestamp when joined" },
+        "invitedBy": { "type": "string", "description": "Inviter UID", "maxLength": 128 }
+      },
+      "required": ["id", "teacherId", "teacherEmail", "classroomId", "role", "status", "joinedAt", "invitedBy"]
+    },
+    "CoTeacherInvitation": {
+      "title": "CoTeacherInvitation",
+      "description": "Pending, accepted, declined, or revoked co-teacher invitation record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique invitation ID", "maxLength": 128 },
+        "classroomId": { "type": "string", "description": "Classroom ID", "maxLength": 128 },
+        "classroomTitle": { "type": "string", "description": "Classroom title", "maxLength": 128 },
+        "classroomSubject": { "type": "string", "description": "Classroom subject", "maxLength": 128 },
+        "classroomCode": { "type": "string", "description": "Classroom code", "maxLength": 32 },
+        "ownerId": { "type": "string", "description": "Classroom owner UID", "maxLength": 128 },
+        "ownerName": { "type": "string", "description": "Classroom owner name", "maxLength": 128 },
+        "ownerEmail": { "type": "string", "format": "email", "description": "Classroom owner email", "maxLength": 256 },
+        "recipientEmail": { "type": "string", "format": "email", "description": "Invited teacher email", "maxLength": 256 },
+        "recipientTeacherId": { "type": "string", "description": "Invited teacher UID if known", "maxLength": 128 },
+        "recipientName": { "type": "string", "description": "Invited teacher name", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["Co-Lecturer", "Teaching Assistant", "Assessment Reviewer", "Lab Instructor"], "description": "Target role" },
+        "message": { "type": "string", "description": "Optional personal note", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "revoked"], "description": "Invitation status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["id", "classroomId", "ownerId", "ownerEmail", "recipientEmail", "role", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "UserProfile"
+      },
+      "description": "User profiles indexed by Auth UID with server-side role immutability"
+    },
+    "/classrooms/{classroomId}": {
+      "schema": {
+        "$ref": "Classroom"
+      },
+      "description": "Classrooms creatable and manageable only by verified teachers via server-side rules"
+    },
+    "/classrooms/{classroomId}/materials/{materialId}": {
+      "schema": {
+        "$ref": "ClassroomMaterial"
+      },
+      "description": "Course materials uploaded and modified only by verified teachers via server-side rules"
+    },
+    "/classrooms/{classroomId}/enrollments/{enrollmentId}": {
+      "schema": {
+        "$ref": "ClassroomEnrollment"
+      },
+      "description": "Student enrollments created by authenticated students and readable by classroom instructors and students"
+    },
+    "/classrooms/{classroomId}/messages/{messageId}": {
+      "schema": {
+        "$ref": "ClassroomMessage"
+      },
+      "description": "Real-time classroom messages readable and writable by authenticated classroom participants"
+    },
+    "/classrooms/{classroomId}/coTeachers/{coTeacherId}": {
+      "schema": {
+        "$ref": "CoTeacherMember"
+      },
+      "description": "Active co-teachers registered in classroom with assigned roles and permissions"
+    },
+    "/coTeacherInvitations/{inviteId}": {
+      "schema": {
+        "$ref": "CoTeacherInvitation"
+      },
+      "description": "Faculty co-teacher invitations with real-time lifecycle tracking"
+    }
+  }
+}

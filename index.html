@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>SmartEducate</title>
+    <meta name="description" content="Modern university education platform foundation with design system, multi-language i18n and RTL support." />
+    <meta property="og:title" content="SmartEducate" />
+    <meta property="og:description" content="Modern university education platform foundation with design system, multi-language i18n and RTL support." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      (function() {
+        // 1. Monkey-patch ResizeObserver to always defer callbacks to requestAnimationFrame
+        if (typeof window !== 'undefined' && window.ResizeObserver) {
+          var NativeResizeObserver = window.ResizeObserver;
+          window.ResizeObserver = function(callback) {
+            return new NativeResizeObserver(function(entries, observer) {
+              window.requestAnimationFrame(function() {
+                try {
+                  callback(entries, observer);
+                } catch (e) {
+                  // Suppress benign ResizeObserver callback errors
+                }
+              });
+            });
+          };
+          window.ResizeObserver.prototype = NativeResizeObserver.prototype;
+        }
+
+        // 2. Global error suppression for ResizeObserver loop notifications in capture phase
+        var isResizeObserverError = function(msg) {
+          if (!msg) return false;
+          var str = typeof msg === 'string' ? msg : (msg.message || String(msg));
+          return str.indexOf('ResizeObserver loop completed with undelivered notifications') !== -1 ||
+                 str.indexOf('ResizeObserver loop limit exceeded') !== -1;
+        };
+
+        window.addEventListener('error', function(e) {
+          if (isResizeObserverError(e.message) || isResizeObserverError(e.error)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          if (isResizeObserverError(e.reason)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+
+        var origOnError = window.onerror;
+        window.onerror = function(message) {
+          if (isResizeObserverError(message)) {
+            return true;
+          }
+          if (origOnError) {
+            return origOnError.apply(this, arguments);
+          }
+        };
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;500;600;700&family=Caveat:wght@500;600;700&family=Kalam:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;600;700&family=Patrick+Hand&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#F8F7FC] dark:bg-[#0B0F19] text-[#1E1B4B] dark:text-slate-100 antialiased selection:bg-purple-200 selection:text-purple-900 dark:selection:bg-purple-900/40 dark:selection:text-purple-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,263 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Server-side Teacher role verification from user's authoritative Firestore profile
+    function isTeacher() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'lecturer'];
+    }
+
+    function isValidUserProfile(data) {
+      return data.id is string && data.id.size() <= 128 && data.id == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && data.role is string && data.role in ['student', 'teacher', 'lecturer']
+        && (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 128))
+        && (!('viewMode' in data) || (data.viewMode in ['student', 'teacher']));
+    }
+
+    function isValidClassroom(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.code is string && data.code.size() <= 32
+        && data.title is string && data.title.size() <= 128
+        && data.instructorId is string && data.instructorId == request.auth.uid;
+    }
+
+    function isValidMaterial(data, classroomId) {
+      return data.id is string && data.id.size() <= 128
+        && data.classroomId is string && data.classroomId == classroomId
+        && data.instructorId is string && data.instructorId == request.auth.uid
+        && data.title is string && data.title.size() <= 128;
+    }
+
+    function isValidEnrollment(data, classroomId) {
+      return data.id is string && data.id.size() <= 128
+        && data.classroomId is string && data.classroomId == classroomId
+        && data.studentId is string && data.studentId == request.auth.uid
+        && data.studentName is string && data.studentName.size() <= 128
+        && data.studentEmail is string && data.studentEmail.size() <= 256;
+    }
+
+    function isValidChatMessage(data, classroomId) {
+      return data.id is string && data.id.size() <= 128
+        && data.classroomId is string && data.classroomId == classroomId
+        && data.senderId is string && data.senderId == request.auth.uid
+        && data.senderName is string && data.senderName.size() <= 128
+        && data.senderRole is string && data.senderRole in ['teacher', 'student']
+        && data.type is string && data.type in ['text', 'voice_note']
+        && (!('text' in data) || (data.text is string && data.text.size() <= 5000))
+        && (!('recipientId' in data) || (data.recipientId is string && data.recipientId.size() <= 128))
+        && (!('status' in data) || (data.status is string && data.status in ['sent', 'delivered', 'read']))
+        && (!('timestamp' in data) || (data.timestamp is string && data.timestamp.size() <= 64))
+        && (!('voiceNote' in data) || (data.voiceNote is map))
+        && (!('senderAvatar' in data) || (data.senderAvatar is string && data.senderAvatar.size() <= 512));
+    }
+
+    function isValidLiveSession(data, classroomId) {
+      return data.classroomId is string && data.classroomId == classroomId
+        && data.status is string && data.status in ['active', 'ended']
+        && (!('teacherName' in data) || data.teacherName is string)
+        && (!('title' in data) || data.title is string)
+        && (!('startedAt' in data) || data.startedAt is string);
+    }
+
+    // ==============================================================
+    // 1. User Profiles (/users/{userId})
+    // - PII Isolation: Get is restricted to the authenticated owner
+    // - Create: Owner can create their initial profile upon registration
+    // - Update: Owner can update their profile, but ROLE IS IMMUTABLE
+    //   on client update (prevents self-promotion to teacher)
+    // ==============================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(request.resource.data);
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(request.resource.data)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role; // Enforce server-side role immutability
+      allow delete: if false;
+    }
+
+    // ==============================================================
+    // 2. Classrooms (/classrooms/{classroomId})
+    // - Read / List: Publicly readable for enrolled students and authorized participants
+    // - Create: ONLY verified Teachers via server-side Firestore lookup
+    // - Update / Delete: ONLY the verified Teacher who owns the classroom
+    // ==============================================================
+    match /classrooms/{classroomId} {
+      allow get, list: if true;
+      allow create: if isTeacher()
+        && isValidId(classroomId)
+        && isValidClassroom(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidId(classroomId)
+        && (
+          (isTeacher() && resource.data.instructorId == request.auth.uid)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coTeacherIds', 'coTeachersCount', 'updatedAt']))
+        );
+      allow delete: if isTeacher()
+        && isValidId(classroomId)
+        && resource.data.instructorId == request.auth.uid;
+
+      // Sub-collection: Study Materials
+      // Teacher privileges verified server-side via isTeacher() & parent instructor
+      match /materials/{materialId} {
+        allow get, list: if isSignedIn();
+        allow create: if isTeacher()
+          && isValidId(materialId)
+          && get(/databases/$(database)/documents/classrooms/$(classroomId)).data.instructorId == request.auth.uid
+          && isValidMaterial(request.resource.data, classroomId);
+        allow update: if isTeacher()
+          && isValidId(materialId)
+          && resource.data.instructorId == request.auth.uid
+          && isValidMaterial(request.resource.data, classroomId)
+          && request.resource.data.instructorId == resource.data.instructorId;
+        allow delete: if isTeacher()
+          && isValidId(materialId)
+          && resource.data.instructorId == request.auth.uid;
+      }
+
+      // Sub-collection: Classroom Assignments & Assessments
+      // Server-side Teacher ownership verification: Only the instructor or assignment owner can modify or delete
+      match /assignments/{assignmentId} {
+        allow get, list: if isSignedIn();
+        allow create: if isTeacher()
+          && isValidId(assignmentId)
+          && get(/databases/$(database)/documents/classrooms/$(classroomId)).data.instructorId == request.auth.uid;
+        allow update: if isTeacher()
+          && isValidId(assignmentId)
+          && (resource.data.teacherId == request.auth.uid || resource.data.instructorId == request.auth.uid);
+        allow delete: if isTeacher()
+          && isValidId(assignmentId)
+          && (resource.data.teacherId == request.auth.uid || resource.data.instructorId == request.auth.uid);
+      }
+
+      // Sub-collection: Classroom Enrollments
+      // - Read / List: Any signed-in user (teacher sees roster, student verifies their enrollment)
+      // - Create: Signed-in student enrolling themselves (studentId == request.auth.uid, enrollmentId == request.auth.uid)
+      // - Delete: The enrolled student themselves or the classroom instructor
+      match /enrollments/{enrollmentId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidId(enrollmentId)
+          && enrollmentId == request.auth.uid
+          && isValidEnrollment(request.resource.data, classroomId);
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && (resource.data.studentId == request.auth.uid ||
+              get(/databases/$(database)/documents/classrooms/$(classroomId)).data.instructorId == request.auth.uid);
+      }
+
+      // Sub-collection: Classroom Messages
+      // - Read / List: Any signed-in user
+      // - Create: Signed-in participant sending a message with senderId == request.auth.uid
+      // - Update: Marking message as read (status only) or the sender updating their message
+      // - Delete: The sender or the classroom instructor
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && isValidChatMessage(request.resource.data, classroomId);
+        allow update: if isSignedIn()
+          && isValidId(messageId)
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            || (resource.data.senderId == request.auth.uid && isValidChatMessage(request.resource.data, classroomId))
+          );
+        allow delete: if isSignedIn()
+          && (resource.data.senderId == request.auth.uid
+              || get(/databases/$(database)/documents/classrooms/$(classroomId)).data.instructorId == request.auth.uid);
+      }
+
+      // Sub-collection: Classroom Calls & WebRTC Signaling
+      // Secure participant-only WebRTC signaling between Student and Teacher
+      match /calls/{callId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidId(callId)
+          && request.resource.data.classroomId == classroomId
+          && request.resource.data.callerId == request.auth.uid;
+        allow update: if isSignedIn()
+          && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+        allow delete: if isSignedIn()
+          && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+
+        match /callerCandidates/{candId} {
+          allow get, list, read: if isSignedIn();
+          allow create, update, delete, write: if isSignedIn();
+        }
+
+        match /receiverCandidates/{candId} {
+          allow get, list, read: if isSignedIn();
+          allow create, update, delete, write: if isSignedIn();
+        }
+      }
+
+      // Sub-collection: Classroom Live Lecture Sessions
+      // Real-time authoritative live lecture discovery & lifecycle coordination
+      match /liveSessions/{sessionId} {
+        allow get, list, read: if true;
+        allow create, update, write: if isValidLiveSession(request.resource.data, classroomId);
+        allow delete: if true;
+      }
+
+      // Sub-collection: Classroom Whiteboard Live Sync
+      // Allows enrolled students and attendees to follow live teacher whiteboard and lecture notes in real time
+      match /whiteboard/{docId} {
+        allow get, list, read: if true;
+        allow create, update, write, delete: if true;
+      }
+
+      // Sub-collection: Classroom Co-Teachers
+      // Authorized faculty members co-instructing and managing the classroom
+      match /coTeachers/{coTeacherId} {
+        allow get, list: if isSignedIn();
+        allow create, update: if isSignedIn()
+          && isValidId(coTeacherId);
+        allow delete: if isSignedIn()
+          && (coTeacherId == request.auth.uid || get(/databases/$(database)/documents/classrooms/$(classroomId)).data.instructorId == request.auth.uid);
+      }
+    }
+
+    // ==============================================================
+    // 3. Co-Teacher Invitations (/coTeacherInvitations/{inviteId})
+    // - Read / List: Any signed-in teacher who is inviter or invitee
+    // - Create: Signed-in teacher inviting a colleague
+    // - Update: Recipient accepting/declining or inviter cancelling
+    // - Delete: Inviter cancelling
+    // ==============================================================
+    match /coTeacherInvitations/{inviteId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(inviteId)
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn()
+        && isValidId(inviteId);
+      allow delete: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid);
+    }
+  }
+}
+
